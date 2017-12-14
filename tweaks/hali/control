@@ -1,0 +1,9 @@
+Package: com.liwenwu.hali
+Name: AliExpress 小能手
+Depends: mobilesubstrate
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: 增强 AliExpress App 使用体验，API数据收集
+Maintainer: 李文武 <dashixiong.lee@gmail.com>
+Author: 李文武 <dashixiong.lee@gmail.com>
+Section: Tweaks
