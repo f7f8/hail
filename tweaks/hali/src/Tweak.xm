@@ -104,11 +104,12 @@
     NSMutableArray *parts = [NSMutableArray array];
     for (NSString *key in body) {
         NSString *value = [NSString stringWithFormat: @"%@", body[key]];
-        //value = [value stringByAddingPercentEncodingWithAllowedCharacters: [NSCharacterSet URLQueryAllowedCharacterSet]];
-        //NSString *encodedValue = value.stringByAddingPercentEncodingWithAllowedCharacters(NSCharacterSet(charactersInString: "!*'\"();:@&=+$,/?%#[]% ").invertedSet);
-        //NSCharacterSet *c = [NSCharacterSet characterSetWithCharactersInString:@"'();:@&=+$,/?%#[]"];
-        //NSString *encodedValue = [value stringByAddingPercentEncodingWithAllowedCharacters: c];
-        //[ stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+        value = [value stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+
+        // 解决RFC1738规划中“+”为合法的URL字符问题。
+        // http://www.ietf.org/rfc/rfc1738.txt
+        // https://github.com/daltoniam/SwiftHTTP/issues/178
+        value = [value stringByReplacingOccurrencesOfString:@"+" withString:@"%2B"];
         NSString *part = [NSString stringWithFormat:@"%@=%@", key, value];
         [parts addObject: part];
     }
@@ -201,10 +202,9 @@
     [str appendFormat: @"==> (%@): %@\n%d\n\n", @"int", @"arg4", arg4];
     [str appendFormat: @"==> (%@): %@\n%@\n\n", [arg5 class], @"arg5", arg5];
 
-    const unsigned char *p = (const unsigned char *)**arg1;
-    NSData *data = [NSData dataWithBytes:p length:strlen(**arg1)];
-
-    [str appendFormat: @"==> (raw bytes): %@\n\n", data];
+   // const unsigned char *p = (const unsigned char *)**arg1;
+   // NSData *data = [NSData dataWithBytes:p length:strlen(**arg1)];
+   // [str appendFormat: @"==> (raw bytes): %@\n\n", data];
 
     [Logger write:str];
     return %orig;
