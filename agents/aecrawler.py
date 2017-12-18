@@ -16,7 +16,7 @@ import hmac
 import hashlib
 from StringIO import StringIO
 
-_LOG_FILE = 'ae.log'
+_LOG_FILE = 'crawler.log'
 _AECONFIG = {}
 
 def printCookies(jar):
