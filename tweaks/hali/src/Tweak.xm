@@ -85,6 +85,7 @@
 %end
 
 %hook AIFNetworkSession
+
 - (_Bool)startURLRequest:(id)method URLString:(id)url bodyParam:(NSDictionary *)body success:(id)arg4 fail:(id)arg5 {
     NSMutableString *str = [NSMutableString new];
     [str appendString: @"\n[hali] -[AIFNetworkSession startURLRequest:URLString:bodyParam:success:fail:]:\n"];
@@ -121,6 +122,7 @@
 
     return %orig;
 }
+
 %end
 
 //%hook AIFAPICommonBizBuilder
@@ -207,6 +209,26 @@
    // [str appendFormat: @"==> (raw bytes): %@\n\n", data];
 
     [Logger write:str];
+    return %orig;
+}
+
+%end
+
+%hook AFHTTPRequestSerializer
+
+- (id)requestWithMethod:(id)arg1 URLString:(id)arg2 parameters:(id)arg3 error:(id *)arg4 {
+    NSMutableString *str = [NSMutableString new];
+    [str appendString: @"\n[hali] -[AFHTTPRequestSerializer requestWithMethod:URLString:parameters:error:]:\n"];
+    [str appendFormat: @"==> (%@): %@\n%@\n\n", [arg1 class], @"method", arg1];
+    [str appendFormat: @"==> (%@): %@\n%@\n\n", [arg2 class], @"url", arg2];
+    [str appendFormat: @"==> (%@): %@\n%@\n\n", [arg3 class], @"parameters", arg3];
+    [str appendFormat: @"==> (%@): %@\n%@\n\n", [*arg4 class], @"error", *arg4];
+
+    NSMutableDictionary * headers = MSHookIvar<id>(self, "_mutableHTTPRequestHeaders");
+    [str appendFormat: @"==> (%@): %@\n\n", @"headers", headers];
+
+    [Logger write:str];
+
     return %orig;
 }
 
