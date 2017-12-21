@@ -163,11 +163,20 @@ def qhandler_search_category(params):
     )
 
 
+def qhandler_crawl_category(params):
+    opener = getHTTPOpener()
+    categoryId = params['id']
+    print '🐞🐞🐞 %d ' % categoryId
+
+
 def qcallback(ch, method, properties, body):
     j = json.loads(body)
 
     if j['task'] == 'search.category':
         qhandler_search_category(j['params'])
+
+    if j['task'] == 'crawl.category':
+        qhandler_crawl_category(j['params'])
 
     time.sleep(0.1)
     ch.basic_ack(delivery_tag = method.delivery_tag)
