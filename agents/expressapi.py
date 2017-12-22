@@ -125,7 +125,7 @@ def searchCategory(callback, retries, depthFrom, depthTo, opener, cid, parent = 
             return None
 
         if r > 0:
-            logging.warn('retry %d times' % r)
+            logging.warn('retry search category %d with %d times' % (cid, r))
 
         j = requestAEAPI(opener, api, params)
         r += 1
