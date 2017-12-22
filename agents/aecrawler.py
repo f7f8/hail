@@ -19,14 +19,14 @@ _LOG_FILE = 'crawler.log'
 _QNAME = 'aecrawler'
 _QCON = None
 _QCH = None
-
+_HTTPOPENER = None
 
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 def qhandler_search_category(params):
-    opener = getHTTPOpener()
+    global _HTTPOPENER
     categoryId = params['id']
     parentId = params['parent']
     depthFrom = params['depth']
@@ -35,12 +35,11 @@ def qhandler_search_category(params):
 
     EAPI.searchCategory(
         categoryFetched, retries, depthFrom, depthTo,
-        opener, categoryId, parentId
+        _HTTPOPENER, categoryId, parentId
     )
 
 
 def qhandler_crawl_category(params):
-    opener = getHTTPOpener()
     categoryId = params['id']
     print '🐞🐞🐞 %d ' % categoryId
 
@@ -60,6 +59,10 @@ def qcallback(ch, method, properties, body):
 
 def qworker(workerId):
     global _QCH
+    global _HTTPOPENER
+
+    _HTTPOPENER = getHTTPOpener()
+
     openMQChannel()
     _QCH.basic_qos(prefetch_count=1)
     _QCH.basic_consume(qcallback, queue=_QNAME)
@@ -128,13 +131,14 @@ def categoryFetched(depth, category, parent):
 
 
 def startCrawler(categoryId):
-    opener = getHTTPOpener()
+    global _HTTPOPENER
+    _HTTPOPENER = getHTTPOpener()
     depthFrom = 0
     depthTo = depthFrom
     retries = 3
 
     openMQChannel()
-    EAPI.searchCategory(categoryFetched, retries, depthFrom, depthTo, opener, categoryId)
+    EAPI.searchCategory(categoryFetched, retries, depthFrom, depthTo, _HTTPOPENER, categoryId)
     closeMQ()
 
 
