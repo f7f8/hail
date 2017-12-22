@@ -100,6 +100,9 @@ ENV/
 # mypy
 .mypy_cache/
 
+# vim swap file
+*.swp
+
 # aecrawler's secure config file
 config.json
 
