@@ -65,22 +65,28 @@ def getResponse(opener, url, data=None, refer=None):
         request = urllib2.Request(url=url, headers=headers)
 
     try:
+        logging.debug('[expressapi] getResponse: %s %s' % (
+            url,
+            '&'.join(['%s=%s' % (k, v) for k,v in data.iteritems()])
+        ))
         response = opener.open(request)
         isZip = response.info().get('Content-Encoding') == 'gzip'
         return readZipResponse(response) if isZip else response.read()
 
     except urllib2.URLError as e:
-        logging.error(e)
+        logging.error('[expressapi] %s' % e)
         return None
 
     except ssl.SSLError as e:
-        logging.error(e)
+        logging.error('[expressapi] %s' % e)
         return None
+
 
 def loadAEConfig(path):
     global _AECONFIG
     _AECONFIG = json.load(path)
     pass
+
 
 def buildCommonParams():
     global _AECONFIG
@@ -93,58 +99,92 @@ def buildCommonParams():
 
 
 def signRequest(api, params, secret):
-    s = '%s' % api
-    for k, v in sorted(params.items(), key=operator.itemgetter(0)):
-       s += '%s%s' % (k, v)
+    sortedParams = ['%s%s' % (k, v) for k,v in params.iteritems()]
+    sortedParams.sort()
+    s = '%s%s' % (api, ''.join(sortedParams))
+
+    logging.debug('[expressapi] signRequest: %s' % s)
 
     return hmac.new(
         secret.encode('utf8'), s.encode('utf8'), hashlib.sha1
     ).hexdigest().upper()
 
 
-def requestAEAPI(opener, api, params, refer = None):
+def requestAEAPI(opener, api, params, maxRetries = 0, refer = None):
     global _AECONFIG
     url = '%s%s' % (_AECONFIG['api']['host'], api)
     secret = _AECONFIG['security']['appSecret']
     data = buildCommonParams()
     data.update(params)
     data['_aop_signature'] =  signRequest(api, data, secret)
+
+    retries = 0
     response = getResponse(opener, url, data)
+    while response is None and retries < maxRetries - 1:
+        logging.warn('[expressapi] retry(%d) get response: %s' % (retries + 1, api))
+        response = getResponse(opener, url, data)
+        retries += 1
+
+    logging.debug('[expressapi] requestAEAPI: [%d attemps] %s %s' % (
+        retries + 1, api,
+        '&'.join(['%s=%s' % (k, v) for k,v in params.iteritems()])
+    ))
     return json.loads(response) if response else None
 
 
-def searchCategory(callback, retries, depthFrom, depthTo, opener, cid, parent = None):
+def searchCategory(callback, retries, opener, depthFrom, depthTo, cid, parent = None):
     global _AECONFIG
     api = _AECONFIG['api']['interfaces']['search.category']
     params = {'id': cid}
 
-    j = requestAEAPI(opener, api, params)
-    r = 0
-    while j is None:
-        if r >= retries:
-            return None
-
-        if r > 0:
-            logging.warn('retry search category %d with %d times' % (cid, r))
-
-        j = requestAEAPI(opener, api, params)
-        r += 1
-
-    # invalid response
-    if 'body' not in j:
+    jsr = requestAEAPI(opener, api, params, retries)
+    if jsr is None or 'body' not in jsr:
         return None
 
-    c = j['body']
-    if (callback): callback(depthFrom, c, parent)
+    body = jsr['body']
+    if (callback):
+        callback(depthFrom, body, parent)
 
-    if 'subCategories' not in c or depthFrom >= depthTo:
-        return c
+    if 'subCategories' not in body or depthFrom >= depthTo:
+        return body
 
-    for sub in c['subCategories']:
+    for sub in body['subCategories']:
         subid = sub['id']
         if subid <= 0:
             continue
 
-        searchCategory(callback, retries, depthFrom+1, depthTo, opener, subid, cid)
+        searchCategory(
+            callback, retries, opener, depthFrom+1, depthTo, subid, cid
+        )
+
+    return body
 
 
+def searchMain(callback, retries, opener, cid, startIndex, pageLength):
+    global _AECONFIG
+    api = _AECONFIG['api']['interfaces']['search.main']
+    params = {
+        'cid': cid,
+        's': startIndex,
+        'n': pageLength,
+        'bs': 'false',
+        'f': 'false',
+        'ms': 'N',
+        'net': 'WIFI',
+        'pop': 'false',
+        'rtl': 'false',
+        'sc': 'false',
+        's1': 'MAIN',
+        'scene': '1_2',
+        'shpt_co': 'US'
+    }
+
+    jsr = requestAEAPI(opener, api, params, retries)
+    if jsr is None or 'body' not in jsr:
+        return None
+
+    body = jsr['body']
+    if (callback):
+        callback(depthFrom, body, parent)
+
+    return body

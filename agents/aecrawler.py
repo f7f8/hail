@@ -10,10 +10,12 @@ import ssl
 import cookielib
 import json
 import time
+from datetime import datetime
 import pika
 import signal
 from multiprocessing import Pool
 import expressapi as EAPI
+
 
 _LOG_FILE = 'crawler.log'
 _QNAME = 'aecrawler'
@@ -21,8 +23,47 @@ _QCON = None
 _QCH = None
 _HTTPOPENER = None
 
-def init_worker():
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+def categoryFetched(depth, category, parent):
+    global _QCH
+
+    leaf = category['leaf'] if 'leaf' in category else False
+    logtext = '[aecrawler] category-fetched [lv%d] %d --> parent:%r [leaf:%d]: %s' % (
+        depth,
+        category['id'],
+        parent,
+        leaf,
+        category['name']
+    )
+
+    logging.info(logtext)
+
+    qt = {
+        'params': {
+            'id': category['id']
+        }
+    }
+
+    if leaf:
+        qt['task'] = 'crawl.category';
+        _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
+        return
+
+    if 'subCategories' not in category:
+        logging.warn(
+            '[aecrawler] non-leaf category without sub-categories: %d!' % category['id']
+        )
+        return
+
+    qt['task'] = 'search.category';
+    for sub in category['subCategories']:
+        subid = sub['id']
+        if subid <= 0:
+            continue
+        qt['params']['id'] = subid;
+        qt['params']['parent'] = category['id'];
+        qt['params']['depth'] = depth + 1;
+        _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
 
 
 def qhandler_search_category(params):
@@ -34,8 +75,8 @@ def qhandler_search_category(params):
     retries = 3
 
     EAPI.searchCategory(
-        categoryFetched, retries, depthFrom, depthTo,
-        _HTTPOPENER, categoryId, parentId
+        categoryFetched, retries, _HTTPOPENER,
+        depthFrom, depthTo, categoryId, parentId
     )
 
 
@@ -71,11 +112,14 @@ def qworker(workerId):
     return (workerId, 'done')
 
 
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 def startWorkers(workers):
     pool = Pool(workers, init_worker)
 
     try:
-        logging.debug('启动 %d 个并行爬虫计算...' % workers)
+        logging.info('[aecrawler] 启动 %d 个并行爬虫计算...' % workers)
         results = pool.map_async(qworker, range(workers)).get(0xffffffff)
         pool.close()
         pool.join()
@@ -84,50 +128,9 @@ def startWorkers(workers):
             print r
 
     except KeyboardInterrupt:
-        logging.warn('任务强制中断！')
+        logging.warn('[aecrawler] 任务强制中断！')
         pool.terminate()
         pool.join()
-
-
-def categoryFetched(depth, category, parent):
-    global _QCH
-
-    leaf = category['leaf'] if 'leaf' in category else False
-    print '%s%d->%r[leaf:%d]: %s' % (
-        '    ' * depth,
-        category['id'],
-        parent,
-        leaf,
-        category['name']
-    )
-
-
-    qt = {
-        'params': {
-            'id': category['id']
-        }
-    }
-
-    if leaf:
-        qt['task'] = 'crawl.category';
-        _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
-        return
-
-    if 'subCategories' not in category:
-        logging.warn(
-            'non-leaf category without sub-categories: %d!' % category['id']
-        )
-        return
-
-    qt['task'] = 'search.category';
-    for sub in category['subCategories']:
-        subid = sub['id']
-        if subid <= 0:
-            continue
-        qt['params']['id'] = subid;
-        qt['params']['parent'] = category['id'];
-        qt['params']['depth'] = depth + 1;
-        _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
 
 
 def startCrawler(categoryId):
@@ -138,7 +141,9 @@ def startCrawler(categoryId):
     retries = 3
 
     openMQChannel()
-    EAPI.searchCategory(categoryFetched, retries, depthFrom, depthTo, _HTTPOPENER, categoryId)
+    EAPI.searchCategory(
+        categoryFetched, retries, _HTTPOPENER, depthFrom, depthTo, categoryId
+    )
     closeMQ()
 
 
@@ -148,7 +153,7 @@ def clearAll():
     _QCH.queue_purge(queue=_QNAME)
     closeMQ()
 
-    logging.info('all of no dispatched tasks have been purged.')
+    logging.warn('[aecrawler] all of no dispatched tasks have been purged.')
 
 
 def getHTTPOpener():
@@ -186,13 +191,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if os.path.isfile(_LOG_FILE):
-        os.remove(_LOG_FILE)
+        logging.info('[aecrawler] ')
 
-    logging.basicConfig(filename = _LOG_FILE, level = logging.WARN)
+    logging.basicConfig(filename = _LOG_FILE, level = logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler())
 
     reload(sys)
     sys.setdefaultencoding("utf8")
+
+    logging.info('[aecrawler] ===========================================' )
+    logging.info('[aecrawler] running at %s' % datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"))
+    logging.info('[aecrawler] ===========================================' )
 
     EAPI.loadAEConfig(open('config.json', 'r'))
 
