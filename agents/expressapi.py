@@ -185,6 +185,6 @@ def searchMain(callback, retries, opener, cid, startIndex, pageLength):
 
     body = jsr['body']
     if (callback):
-        callback(depthFrom, body, parent)
+        callback(body, cid, startIndex, pageLength)
 
     return body

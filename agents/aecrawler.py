@@ -22,7 +22,7 @@ _QNAME = 'aecrawler'
 _QCON = None
 _QCH = None
 _HTTPOPENER = None
-
+_PAGE_LENGTH = 20
 
 def categoryFetched(depth, category, parent):
     global _QCH
@@ -45,7 +45,8 @@ def categoryFetched(depth, category, parent):
     }
 
     if leaf:
-        qt['task'] = 'crawl.category';
+        qt['task'] = 'crawl.category'
+        qt['params']['startIndex'] = 0
         _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
         return
 
@@ -55,15 +56,49 @@ def categoryFetched(depth, category, parent):
         )
         return
 
-    qt['task'] = 'search.category';
+    qt['task'] = 'search.category'
     for sub in category['subCategories']:
         subid = sub['id']
         if subid <= 0:
             continue
-        qt['params']['id'] = subid;
-        qt['params']['parent'] = category['id'];
-        qt['params']['depth'] = depth + 1;
+        qt['params']['id'] = subid
+        qt['params']['parent'] = category['id']
+        qt['params']['depth'] = depth + 1
         _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
+
+
+def categoryPageFetched(body, categoryId, startIndex, pageLength):
+    global _QCH
+    items = body['items']
+    if len(items) <= 0:
+        return
+
+    avlProducts = 0
+    for item in items:
+        if item['type'] == 'searchProduct':
+            _QCH.basic_publish(
+                exchange='', routing_key=_QNAME, body=json.dumps({
+                    'task': 'product.detail',
+                    'params': {
+                        'id': item['productId']
+                    }
+                })
+            )
+            avlProducts += 1
+
+    logging.info('[aecrawler] [%d-%d] products found of %d' % (
+        startIndex + 1, startIndex + avlProducts + 1, categoryId
+    ))
+
+    _QCH.basic_publish(
+        exchange='', routing_key=_QNAME, body=json.dumps({
+            'task': 'crawl.category',
+            'params': {
+                'id': categoryId,
+                'startIndex': startIndex + avlProducts
+            }
+        })
+    )
 
 
 def qhandler_search_category(params):
@@ -81,8 +116,21 @@ def qhandler_search_category(params):
 
 
 def qhandler_crawl_category(params):
+    global _HTTPOPENER
+    global _PAGE_LENGTH
     categoryId = params['id']
-    print '🐞🐞🐞 %d ' % categoryId
+    startIndex = params['startIndex']
+    retries = 3
+
+    EAPI.searchMain(
+        categoryPageFetched, retries, _HTTPOPENER,
+        categoryId, startIndex, _PAGE_LENGTH
+    )
+
+
+def qhandler_product_detail(params):
+    global _HTTPOPENER
+    print 'get product detail of %d' % params['id']
 
 
 def qcallback(ch, method, properties, body):
@@ -93,6 +141,9 @@ def qcallback(ch, method, properties, body):
 
     if j['task'] == 'crawl.category':
         qhandler_crawl_category(j['params'])
+
+    if j['task'] == 'product.detail':
+        qhandler_product_detail(j['params'])
 
     time.sleep(0.1)
     ch.basic_ack(delivery_tag = method.delivery_tag)
@@ -189,9 +240,6 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--category', type=int, default=0, help='id number of category, default is root category[0].')
     parser.add_argument('-w', '--workers', type=int, default=5, help='numbers of worker threads when "worker" command taked, default [5].')
     args = parser.parse_args()
-
-    if os.path.isfile(_LOG_FILE):
-        logging.info('[aecrawler] ')
 
     logging.basicConfig(filename = _LOG_FILE, level = logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler())
