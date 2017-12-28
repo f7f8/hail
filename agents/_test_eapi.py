@@ -45,8 +45,55 @@ class EAPIBasicTestCase(unittest.TestCase):
 
 
     def test_searchMain(self):
-        cid = 200000662
+        cid = 200003478
         r = EAPI.searchMain(None, 0, self.opener, cid, 0, 20)
+        self.assertIsNotNone(r)
+
+
+    def test_getWholeProductDetail_withoutLogin(self):
+        productId = 32805300199
+        timeZone = 'GMT+08:00'
+        r = EAPI.getWholeProductDetail(None, 0, self.opener, productId, timeZone)
+        self.assertIsNotNone(r)
+
+
+class EAPIMemberLoginTestCase(unittest.TestCase):
+    def setUp(self):
+        self.opener = getHTTPOpener()
+        EAPI.loadAEConfig(open('config.json', 'r'))
+
+
+    def test_memberLogin(self):
+        account = 'dashixiong.lee@gmail.com'
+        password = '810603'
+        needRefreshToken = True
+        r = EAPI.memberLogin(
+            None, 0, self.opener, account, password, needRefreshToken
+        )
+        self.assertIsNotNone(r)
+        self.assertEqual(r['accountId'], 1664535863)
+
+
+class EAPIMemberTestCase(unittest.TestCase):
+    def setUp(self):
+        self.opener = getHTTPOpener()
+        EAPI.loadAEConfig(open('config.json', 'r'))
+        account = 'dashixiong.lee@gmail.com'
+        password = '810603'
+        needRefreshToken = True
+        r = EAPI.memberLogin(
+            None, 0, self.opener, account, password, needRefreshToken
+        )
+
+
+    def tearDown(self):
+        pass
+
+
+    def test_getWholeProductDetail_withLogin(self):
+        productId = 32805300199
+        timeZone = 'GMT+08:00'
+        r = EAPI.getWholeProductDetail(None, 0, self.opener, productId, timeZone)
         self.assertIsNotNone(r)
 
 

@@ -101,6 +101,20 @@ def categoryPageFetched(body, categoryId, startIndex, pageLength):
     )
 
 
+def productDetailFetched(body, productId):
+    global _QCH
+
+    if 'priceOption' not in body:
+        print json.dumps(body, indent=2)
+        return
+
+    logging.info('[aecrawler] pid: %d [$ %0.3f] - %s' % (
+        productId,
+        body['priceOption'][0]['minAmount']['value'],
+        body['subject']
+    ))
+
+
 def qhandler_search_category(params):
     global _HTTPOPENER
     categoryId = params['id']
@@ -130,7 +144,13 @@ def qhandler_crawl_category(params):
 
 def qhandler_product_detail(params):
     global _HTTPOPENER
-    print 'get product detail of %d' % params['id']
+    productId = params['id']
+    timeZone = 'GMT+08:00'
+    retries = 3
+
+    EAPI.getWholeProductDetail(
+        productDetailFetched, retries, _HTTPOPENER, productId, timeZone
+    )
 
 
 def qcallback(ch, method, properties, body):

@@ -90,12 +90,17 @@ def loadAEConfig(path):
 
 def buildCommonParams():
     global _AECONFIG
-    return {
+    params = {
         '_aop_nonce': str(uuid.uuid4()).upper(),
         '_currency': 'USD',
         '_lang': 'en_US',
         'deviceId': _AECONFIG['security']['deviceId']
     }
+
+    if 'accessToken' in _AECONFIG['security']:
+        params['access_token'] = _AECONFIG['security']['accessToken']
+
+    return params
 
 
 def signRequest(api, params, secret):
@@ -186,5 +191,47 @@ def searchMain(callback, retries, opener, cid, startIndex, pageLength):
     body = jsr['body']
     if (callback):
         callback(body, cid, startIndex, pageLength)
+
+    return body
+
+
+def getWholeProductDetail(callback, retries, opener, productId, timeZone):
+    global _AECONFIG
+    api = _AECONFIG['api']['interfaces']['product.getWholeProductDetail']
+    params = {
+        'productId': productId,
+        'timeZone': timeZone
+    }
+
+    jsr = requestAEAPI(opener, api, params, retries)
+    if jsr is None or 'body' not in jsr:
+        return None
+
+    body = jsr['body']
+    if (callback):
+        callback(body, productId)
+
+    return body
+
+
+def memberLogin(callback, retries, opener, account, password, needRefreshToken=True):
+    global _AECONFIG
+    api = _AECONFIG['api']['interfaces']['member.login']
+    params = {
+        'account': account,
+        'password': password,
+        'needRefreshToken': needRefreshToken
+    }
+
+    jsr = requestAEAPI(opener, api, params, retries)
+    if jsr is None or 'body' not in jsr:
+        return None
+
+
+    body = jsr['body']
+    _AECONFIG['security']['accessToken'] = body['accessToken']
+
+    if (callback):
+        callback(body, account)
 
     return body
