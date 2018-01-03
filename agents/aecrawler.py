@@ -18,7 +18,8 @@ import expressapi as EAPI
 
 
 _LOG_FILE = 'crawler.log'
-_QNAME = 'aecrawler'
+
+_QTOPICS = None
 _QCON = None
 _QCH = None
 _HTTPOPENER = None
@@ -26,49 +27,60 @@ _PAGE_LENGTH = 20
 
 def categoryFetched(depth, category, parent):
     global _QCH
-
+    global _QTOPICS
+    categoryId = category['id']
     leaf = category['leaf'] if 'leaf' in category else False
-    logtext = '[aecrawler] category-fetched [lv%d] %d --> parent:%r [leaf:%d]: %s' % (
+
+    log = '[aecrawler] category [lv%d] %d --> parent:%r [leaf:%d]: %s' % (
         depth,
-        category['id'],
+        categoryId,
         parent,
         leaf,
         category['name']
     )
 
-    logging.info(logtext)
-
-    qt = {
-        'params': {
-            'id': category['id']
-        }
-    }
+    logging.info(log)
 
     if leaf:
-        qt['task'] = 'crawl.category'
-        qt['params']['startIndex'] = 0
-        _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
+        qt = {
+            'id': categoryId,
+            'startIndex': 0
+        }
+
+        _QCH.basic_publish(
+            exchange='',
+            routing_key=_QTOPICS['search.main']['queue'],
+            body=json.dumps(qt)
+        )
         return
 
     if 'subCategories' not in category:
         logging.warn(
-            '[aecrawler] non-leaf category without sub-categories: %d!' % category['id']
+            '[aecrawler] non-leaf without sub-categories: %d!' % categoryId
         )
         return
 
-    qt['task'] = 'search.category'
     for sub in category['subCategories']:
         subid = sub['id']
         if subid <= 0:
             continue
-        qt['params']['id'] = subid
-        qt['params']['parent'] = category['id']
-        qt['params']['depth'] = depth + 1
-        _QCH.basic_publish(exchange='', routing_key=_QNAME, body=json.dumps(qt))
+
+        qt = {
+            'id': subid,
+            'parent': categoryId,
+            'depth': depth + 1
+        }
+
+        _QCH.basic_publish(
+            exchange='',
+            routing_key=_QTOPICS['search.category']['queue'],
+            body=json.dumps(qt)
+        )
 
 
 def categoryPageFetched(body, categoryId, startIndex, pageLength):
     global _QCH
+    global _QTOPICS
     items = body['items']
     if len(items) <= 0:
         return
@@ -77,11 +89,10 @@ def categoryPageFetched(body, categoryId, startIndex, pageLength):
     for item in items:
         if item['type'] == 'searchProduct':
             _QCH.basic_publish(
-                exchange='', routing_key=_QNAME, body=json.dumps({
-                    'task': 'product.detail',
-                    'params': {
-                        'id': item['productId']
-                    }
+                exchange='',
+                routing_key=_QTOPICS['product.detail']['queue'],
+                body=json.dumps({
+                    'id': item['productId']
                 })
             )
             avlProducts += 1
@@ -91,12 +102,11 @@ def categoryPageFetched(body, categoryId, startIndex, pageLength):
     ))
 
     _QCH.basic_publish(
-        exchange='', routing_key=_QNAME, body=json.dumps({
-            'task': 'crawl.category',
-            'params': {
-                'id': categoryId,
-                'startIndex': startIndex + avlProducts
-            }
+        exchange='',
+        routing_key=_QTOPICS['search.main']['queue'],
+        body=json.dumps({
+            'id': categoryId,
+            'startIndex': startIndex + avlProducts
         })
     )
 
@@ -115,8 +125,9 @@ def productDetailFetched(body, productId):
     ))
 
 
-def qhandler_search_category(params):
+def qb_search_category(ch, method, properties, body):
     global _HTTPOPENER
+    params = json.loads(body)
     categoryId = params['id']
     parentId = params['parent']
     depthFrom = params['depth']
@@ -127,11 +138,14 @@ def qhandler_search_category(params):
         categoryFetched, retries, _HTTPOPENER,
         depthFrom, depthTo, categoryId, parentId
     )
+    time.sleep(0.1)
+    ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
-def qhandler_crawl_category(params):
+def qb_search_main(ch, method, properties, body):
     global _HTTPOPENER
     global _PAGE_LENGTH
+    params = json.loads(body)
     categoryId = params['id']
     startIndex = params['startIndex']
     retries = 3
@@ -140,10 +154,13 @@ def qhandler_crawl_category(params):
         categoryPageFetched, retries, _HTTPOPENER,
         categoryId, startIndex, _PAGE_LENGTH
     )
+    time.sleep(0.1)
+    ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
-def qhandler_product_detail(params):
+def qb_product_detail(ch, method, properties, body):
     global _HTTPOPENER
+    params = json.loads(body)
     productId = params['id']
     timeZone = 'GMT+08:00'
     retries = 3
@@ -151,47 +168,40 @@ def qhandler_product_detail(params):
     EAPI.getWholeProductDetail(
         productDetailFetched, retries, _HTTPOPENER, productId, timeZone
     )
-
-
-def qcallback(ch, method, properties, body):
-    j = json.loads(body)
-
-    if j['task'] == 'search.category':
-        qhandler_search_category(j['params'])
-
-    if j['task'] == 'crawl.category':
-        qhandler_crawl_category(j['params'])
-
-    if j['task'] == 'product.detail':
-        qhandler_product_detail(j['params'])
-
     time.sleep(0.1)
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
-def qworker(workerId):
+def qworker(task):
     global _QCH
     global _HTTPOPENER
+    global _QTOPICS
+
+    topic = task['topic']
+    qname = _QTOPICS[topic]['queue']
+    callback = _QTOPICS[topic]['consumer']
 
     _HTTPOPENER = getHTTPOpener()
 
     openMQChannel()
     _QCH.basic_qos(prefetch_count=1)
-    _QCH.basic_consume(qcallback, queue=_QNAME)
+    _QCH.basic_consume(callback, queue=qname)
     _QCH.start_consuming()
     closeMQ()
-    return (workerId, 'done')
+    return (task, 'done')
 
 
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-def startWorkers(workers):
+def startWorkers(workers, topic):
     pool = Pool(workers, init_worker)
 
     try:
         logging.info('[aecrawler] 启动 %d 个并行爬虫计算...' % workers)
-        results = pool.map_async(qworker, range(workers)).get(0xffffffff)
+        results = pool.map_async(
+            qworker, [{'id': x, 'topic': topic} for x in range(workers)]
+        ).get(0xffffffff)
         pool.close()
         pool.join()
 
@@ -220,8 +230,12 @@ def startCrawler(categoryId):
 
 def clearAll():
     global _QCH
+    global _QTOPICS
     openMQChannel()
-    _QCH.queue_purge(queue=_QNAME)
+
+    for key, v in _QTOPICS.iteritems():
+        _QCH.queue_purge(queue=v['queue'])
+
     closeMQ()
 
     logging.warn('[aecrawler] all of no dispatched tasks have been purged.')
@@ -241,9 +255,12 @@ def getHTTPOpener():
 def openMQChannel():
     global _QCON
     global _QCH
+    global _QTOPICS
     _QCON = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     _QCH = _QCON.channel()
-    _QCH.queue_declare(queue=_QNAME)
+
+    for key, v in _QTOPICS.iteritems():
+        _QCH.queue_declare(queue=v['queue'])
 
 def closeMQ():
     global _QCON
@@ -259,6 +276,7 @@ if __name__ == '__main__':
     parser.add_argument('command', choices=['start', 'worker', 'clear'], help=commands_help)
     parser.add_argument('-c', '--category', type=int, default=0, help='id number of category, default is root category[0].')
     parser.add_argument('-w', '--workers', type=int, default=5, help='numbers of worker threads when "worker" command taked, default [5].')
+    parser.add_argument('-t', '--topic', type=str, default='search.category', help='target topic for worker, "search.category" default.')
     args = parser.parse_args()
 
     logging.basicConfig(filename = _LOG_FILE, level = logging.INFO)
@@ -273,9 +291,24 @@ if __name__ == '__main__':
 
     EAPI.loadAEConfig(open('config.json', 'r'))
 
+    _QTOPICS = {
+        'search.category': {
+            'queue': 'aecq-search-category',
+            'consumer': qb_search_category
+        },
+        'search.main': {
+            'queue': 'aecq-search-main',
+            'consumer': qb_search_main
+        },
+        'product.detail': {
+            'queue': 'aecq-product-detail',
+            'consumer': qb_product_detail
+        }
+    }
+
     if args.command == 'start':
         startCrawler(args.category)
     elif args.command == 'worker':
-        startWorkers(args.workers)
+        startWorkers(args.workers, args.topic)
     elif args.command == 'clear':
         clearAll()
