@@ -15,7 +15,6 @@ import operator
 import time
 import hmac
 import hashlib
-import signal
 from StringIO import StringIO
 
 _AECONFIG = {}
@@ -152,7 +151,7 @@ def searchCategory(callback, retries, opener, depthFrom, depthTo, cid, parent = 
 
     body = jsr['body']
     if (callback):
-        callback(depthFrom, body, parent)
+        callback(cid, depthFrom, body, parent)
 
     if 'subCategories' not in body or depthFrom >= depthTo:
         return body
@@ -230,7 +229,6 @@ def memberLogin(callback, retries, opener, account, password, needRefreshToken=T
     jsr = requestAEAPI(opener, api, params, retries)
     if jsr is None or 'body' not in jsr:
         return None
-
 
     body = jsr['body']
     _AECONFIG['security']['accessToken'] = body['accessToken']

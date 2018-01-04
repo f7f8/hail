@@ -26,9 +26,14 @@ _HTTPOPENER = None
 _PAGE_LENGTH = 20
 _APPCONFIG = None
 
-def categoryFetched(depth, category, parent):
+def categoryFetched(id, depth, category, parent):
     global _QCH
     global _QTOPICS
+
+    if 'id' not in category:
+        logging.error('[aecrawler] invalid category body of [%d]' % id)
+        return
+
     categoryId = category['id']
     leaf = category['leaf'] if 'leaf' in category else False
 
@@ -41,6 +46,9 @@ def categoryFetched(depth, category, parent):
     )
 
     logging.info(log)
+
+    with open('data/c%d.json' % categoryId, 'w') as f:
+        json.dump(category, f, indent=2, sort_keys=True)
 
     if leaf:
         qt = {
