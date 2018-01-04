@@ -84,8 +84,12 @@ def getResponse(opener, url, data=None, refer=None):
 
 def loadAEConfig(path):
     global _AECONFIG
-    _AECONFIG = json.load(path)
-    pass
+    _AECONFIG = json.load(open(path, 'r'))
+
+
+def setConfig(value):
+    global _AECONFIG
+    _AECONFIG = value
 
 
 def buildCommonParams():
@@ -117,7 +121,7 @@ def signRequest(api, params, secret):
 
 def requestAEAPI(opener, api, params, maxRetries = 0, refer = None):
     global _AECONFIG
-    url = '%s%s' % (_AECONFIG['api']['host'], api)
+    url = '%s%s' % (_AECONFIG['host'], api)
     secret = _AECONFIG['security']['appSecret']
     data = buildCommonParams()
     data.update(params)
@@ -139,7 +143,7 @@ def requestAEAPI(opener, api, params, maxRetries = 0, refer = None):
 
 def searchCategory(callback, retries, opener, depthFrom, depthTo, cid, parent = None):
     global _AECONFIG
-    api = _AECONFIG['api']['interfaces']['search.category']
+    api = _AECONFIG['interfaces']['search.category']
     params = {'id': cid}
 
     jsr = requestAEAPI(opener, api, params, retries)
@@ -167,7 +171,7 @@ def searchCategory(callback, retries, opener, depthFrom, depthTo, cid, parent = 
 
 def searchMain(callback, retries, opener, cid, startIndex, pageLength):
     global _AECONFIG
-    api = _AECONFIG['api']['interfaces']['search.main']
+    api = _AECONFIG['interfaces']['search.main']
     params = {
         'cid': cid,
         's': startIndex,
@@ -197,7 +201,7 @@ def searchMain(callback, retries, opener, cid, startIndex, pageLength):
 
 def getWholeProductDetail(callback, retries, opener, productId, timeZone):
     global _AECONFIG
-    api = _AECONFIG['api']['interfaces']['product.getWholeProductDetail']
+    api = _AECONFIG['interfaces']['product.getWholeProductDetail']
     params = {
         'productId': productId,
         'timeZone': timeZone
@@ -216,7 +220,7 @@ def getWholeProductDetail(callback, retries, opener, productId, timeZone):
 
 def memberLogin(callback, retries, opener, account, password, needRefreshToken=True):
     global _AECONFIG
-    api = _AECONFIG['api']['interfaces']['member.login']
+    api = _AECONFIG['interfaces']['member.login']
     params = {
         'account': account,
         'password': password,

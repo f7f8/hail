@@ -24,6 +24,7 @@ _QCON = None
 _QCH = None
 _HTTPOPENER = None
 _PAGE_LENGTH = 20
+_APPCONFIG = None
 
 def categoryFetched(depth, category, parent):
     global _QCH
@@ -256,7 +257,18 @@ def openMQChannel():
     global _QCON
     global _QCH
     global _QTOPICS
-    _QCON = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+
+    host = _APPCONFIG['rabbitmq']['host']
+    port = _APPCONFIG['rabbitmq']['port']
+    virtualHost = _APPCONFIG['rabbitmq']['virtual_host']
+    credentials = pika.PlainCredentials(
+        _APPCONFIG['rabbitmq']['credentials']['username'],
+        _APPCONFIG['rabbitmq']['credentials']['password']
+    )
+
+    _QCON = pika.BlockingConnection(pika.ConnectionParameters(
+        host, port, virtualHost, credentials
+    ))
     _QCH = _QCON.channel()
 
     for key, v in _QTOPICS.iteritems():
@@ -289,7 +301,8 @@ if __name__ == '__main__':
     logging.info('[aecrawler] running at %s' % datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"))
     logging.info('[aecrawler] ===========================================' )
 
-    EAPI.loadAEConfig(open('config.json', 'r'))
+    _APPCONFIG = json.load(open('config.json', 'r'))
+    EAPI.setConfig(_APPCONFIG['api'])
 
     _QTOPICS = {
         'search.category': {
