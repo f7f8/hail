@@ -15,10 +15,10 @@ import pika
 import signal
 from multiprocessing import Pool
 import expressapi as EAPI
+import aemongo as MONGO
 
 
 _LOG_FILE = 'crawler.log'
-
 _QTOPICS = None
 _QCON = None
 _QCH = None
@@ -26,10 +26,55 @@ _HTTPOPENER = None
 _PAGE_LENGTH = 20
 _APPCONFIG = None
 
-def categoryFetched(id, depth, category, parent):
+
+def queueSearchCategory(categoryId, parentId, depth):
     global _QCH
     global _QTOPICS
 
+    qt = {
+        'id': categoryId,
+        'parent': parentId,
+        'depth': depth
+    }
+
+    _QCH.basic_publish(
+        exchange='',
+        routing_key=_QTOPICS['search.category']['queue'],
+        body=json.dumps(qt)
+    )
+
+
+def queueSearchMain(categoryId, startIndex):
+    global _QCH
+    global _QTOPICS
+
+    qt = {
+        'id': categoryId,
+        'startIndex': startIndex
+    }
+
+    _QCH.basic_publish(
+        exchange='',
+        routing_key=_QTOPICS['search.main']['queue'],
+        body=json.dumps(qt)
+    )
+
+
+def queueProductDetail(productId, categoryId):
+    global _QCH
+    global _QTOPICS
+
+    _QCH.basic_publish(
+        exchange='',
+        routing_key=_QTOPICS['product.detail']['queue'],
+        body=json.dumps({
+            'productId': productId,
+            'categoryId': categoryId
+        })
+    )
+
+
+def categoryFetched(id, depth, category, parent):
     if 'id' not in category:
         logging.error('[aecrawler] invalid category body of [%d]' % id)
         return
@@ -38,30 +83,14 @@ def categoryFetched(id, depth, category, parent):
     leaf = category['leaf'] if 'leaf' in category else False
 
     log = '[aecrawler] category [lv%d] %d --> parent:%r [leaf:%d]: %s' % (
-        depth,
-        categoryId,
-        parent,
-        leaf,
-        category['name']
+        depth, categoryId, parent, leaf,category['name']
     )
-
     logging.info(log)
 
-    with open('data/c%d.json' % categoryId, 'w') as f:
-        json.dump(category, f, indent=2, sort_keys=True)
+    MONGO.updateCategory(category, parent, depth)
 
     if leaf:
-        qt = {
-            'id': categoryId,
-            'startIndex': 0
-        }
-
-        _QCH.basic_publish(
-            exchange='',
-            routing_key=_QTOPICS['search.main']['queue'],
-            body=json.dumps(qt)
-        )
-        return
+        return queueSearchMain(categoryId, 0)
 
     if 'subCategories' not in category:
         logging.warn(
@@ -73,23 +102,11 @@ def categoryFetched(id, depth, category, parent):
         subid = sub['id']
         if subid <= 0:
             continue
+        queueSearchCategory(subid, categoryId, depth+1)
 
-        qt = {
-            'id': subid,
-            'parent': categoryId,
-            'depth': depth + 1
-        }
-
-        _QCH.basic_publish(
-            exchange='',
-            routing_key=_QTOPICS['search.category']['queue'],
-            body=json.dumps(qt)
-        )
 
 
 def categoryPageFetched(body, categoryId, startIndex, pageLength):
-    global _QCH
-    global _QTOPICS
     items = body['items']
     if len(items) <= 0:
         return
@@ -97,41 +114,14 @@ def categoryPageFetched(body, categoryId, startIndex, pageLength):
     avlProducts = 0
     for item in items:
         if item['type'] == 'searchProduct':
-            _QCH.basic_publish(
-                exchange='',
-                routing_key=_QTOPICS['product.detail']['queue'],
-                body=json.dumps({
-                    'id': item['productId']
-                })
-            )
+            queueProductDetail(item['productId'], categoryId)
             avlProducts += 1
 
     logging.info('[aecrawler] [%d-%d] products found of %d' % (
         startIndex + 1, startIndex + avlProducts + 1, categoryId
     ))
 
-    _QCH.basic_publish(
-        exchange='',
-        routing_key=_QTOPICS['search.main']['queue'],
-        body=json.dumps({
-            'id': categoryId,
-            'startIndex': startIndex + avlProducts
-        })
-    )
-
-
-def productDetailFetched(body, productId):
-    global _QCH
-
-    if 'priceOption' not in body:
-        print json.dumps(body, indent=2)
-        return
-
-    logging.info('[aecrawler] pid: %d [$ %0.3f] - %s' % (
-        productId,
-        body['priceOption'][0]['minAmount']['value'],
-        body['subject']
-    ))
+    queueSearchMain(categoryId, startIndex + avlProducts)
 
 
 def qb_search_category(ch, method, properties, body):
@@ -167,16 +157,32 @@ def qb_search_main(ch, method, properties, body):
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
-def qb_product_detail(ch, method, properties, body):
+def qc_product_detail(ch, method, properties, body):
     global _HTTPOPENER
     params = json.loads(body)
-    productId = params['id']
+    productId = params['productId']
+    categoryId = params['categoryId']
     timeZone = 'GMT+08:00'
     retries = 3
 
-    EAPI.getWholeProductDetail(
-        productDetailFetched, retries, _HTTPOPENER, productId, timeZone
-    )
+    res = EAPI.getWholeProductDetail(retries, _HTTPOPENER, productId, timeZone)
+    if res:
+        MONGO.updateProduct(res, productId, categoryId)
+
+        if 'priceOption' not in res:
+            print json.dumps(res, indent=2)
+            return
+
+        logging.info('[aecrawler] %d:%d --> %d:%d [$ %0.3f] - %s' % (
+            productId,
+            int(res['productId']),
+            categoryId,
+            res['categoryId'],
+            res['priceOption'][0]['minAmount']['value'],
+            res['subject']
+        ))
+
+
     time.sleep(0.1)
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
@@ -185,6 +191,8 @@ def qworker(task):
     global _QCH
     global _HTTPOPENER
     global _QTOPICS
+
+    connectMongo()
 
     topic = task['topic']
     qname = _QTOPICS[topic]['queue']
@@ -229,6 +237,8 @@ def startCrawler(categoryId):
     depthFrom = 0
     depthTo = depthFrom
     retries = 3
+
+    connectMongo()
 
     openMQChannel()
     EAPI.searchCategory(
@@ -282,11 +292,19 @@ def openMQChannel():
     for key, v in _QTOPICS.iteritems():
         _QCH.queue_declare(queue=v['queue'])
 
+
 def closeMQ():
     global _QCON
     global _QCH
     _QCH.close()
     _QCON.close()
+
+
+def connectMongo():
+    uri = _APPCONFIG['mongodb']['uri']
+    dbname = _APPCONFIG['mongodb']['database']
+    MONGO.connect(uri, dbname)
+
 
 if __name__ == '__main__':
     desc = 'A distributed crawler for aliexpress platform.'
@@ -323,7 +341,7 @@ if __name__ == '__main__':
         },
         'product.detail': {
             'queue': 'aecq-product-detail',
-            'consumer': qb_product_detail
+            'consumer': qc_product_detail
         }
     }
 

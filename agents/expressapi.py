@@ -198,7 +198,7 @@ def searchMain(callback, retries, opener, cid, startIndex, pageLength):
     return body
 
 
-def getWholeProductDetail(callback, retries, opener, productId, timeZone):
+def getWholeProductDetail(retries, opener, productId, timeZone):
     global _AECONFIG
     api = _AECONFIG['interfaces']['product.getWholeProductDetail']
     params = {
@@ -210,11 +210,7 @@ def getWholeProductDetail(callback, retries, opener, productId, timeZone):
     if jsr is None or 'body' not in jsr:
         return None
 
-    body = jsr['body']
-    if (callback):
-        callback(body, productId)
-
-    return body
+    return jsr['body']
 
 
 def memberLogin(callback, retries, opener, account, password, needRefreshToken=True):
