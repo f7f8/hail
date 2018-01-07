@@ -290,7 +290,7 @@ def openMQChannel():
     _QCH = _QCON.channel()
 
     for key, v in _QTOPICS.iteritems():
-        _QCH.queue_declare(queue=v['queue'])
+        _QCH.queue_declare(queue=v['queue'], durable=True)
 
 
 def closeMQ():
