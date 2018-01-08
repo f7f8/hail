@@ -105,7 +105,6 @@ def categoryFetched(id, depth, category, parent):
         queueSearchCategory(subid, categoryId, depth+1)
 
 
-
 def categoryPageFetched(body, categoryId, startIndex, pageLength):
     items = body['items']
     if len(items) <= 0:
@@ -114,7 +113,9 @@ def categoryPageFetched(body, categoryId, startIndex, pageLength):
     avlProducts = 0
     for item in items:
         if item['type'] == 'searchProduct':
-            queueProductDetail(item['productId'], categoryId)
+            productId = item['productId']
+            queueProductDetail(productId , categoryId)
+            MONGO.makeProductDummy(productId , categoryId)
             avlProducts += 1
 
     logging.info('[aecrawler] [%d-%d] products found of %d' % (

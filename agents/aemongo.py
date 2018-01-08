@@ -17,14 +17,28 @@ def updateCategory(category, parent, depth):
 
     query = {'_id': category['id']}
     update = {'$set': category}
-    _DB['categories'].update_one(query, update, upsert = True)
+    _DB['categories'].update_one(query, update, upsert=True)
 
 
 def updateProduct(product, productId, categoryId):
     global _DB
 
     product['categoryId'] = categoryId
+    product['dummy'] = false
 
     query = {'_id': productId}
     update = {'$set': product}
-    _DB['products'].update_one(query, update, upsert = True)
+    _DB['products'].update_one(query, update, upsert=True)
+
+
+def makeProductDummy(productId, categoryId):
+    global _DB
+
+    product = {
+        'categoryId': categoryId,
+        'dummy': True
+    }
+
+    query = {'_id': productId}
+    update = {'$set': product}
+    _DB['products'].update_one(query, update, upsert=True)
