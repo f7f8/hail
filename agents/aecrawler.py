@@ -12,6 +12,7 @@ import json
 import time
 from datetime import datetime
 import pika
+import pymongo
 import signal
 from multiprocessing import Pool
 import expressapi as EAPI
@@ -115,7 +116,12 @@ def categoryPageFetched(body, categoryId, startIndex, pageLength):
         if item['type'] == 'searchProduct':
             productId = item['productId']
             queueProductDetail(productId , categoryId)
-            MONGO.makeProductDummy(productId , categoryId)
+            try:
+                MONGO.makeProductDummy(productId , categoryId)
+
+            except pymongo.errors.DuplicateKeyError as e:
+                logging.error('[aecrawler] pymongo %s' % e)
+
             avlProducts += 1
 
     logging.info('[aecrawler] [%d-%d] products found of %d' % (
@@ -170,18 +176,18 @@ def qc_product_detail(ch, method, properties, body):
     if res:
         MONGO.updateProduct(res, productId, categoryId)
 
-        if 'priceOption' not in res:
-            print json.dumps(res, indent=2)
-            return
+        if 'priceOption' in res:
+            logging.info('[aecrawler] %d:%d --> %d:%d [$ %0.3f] - %s' % (
+                productId,
+                int(res['productId']),
+                categoryId,
+                res['categoryId'],
+                res['priceOption'][0]['minAmount']['value'],
+                res['subject']
+            ))
 
-        logging.info('[aecrawler] %d:%d --> %d:%d [$ %0.3f] - %s' % (
-            productId,
-            int(res['productId']),
-            categoryId,
-            res['categoryId'],
-            res['priceOption'][0]['minAmount']['value'],
-            res['subject']
-        ))
+        else:
+            print json.dumps(res, indent=2)
 
 
     time.sleep(0.1)
