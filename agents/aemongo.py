@@ -24,7 +24,7 @@ def updateProduct(product, productId, categoryId):
     global _DB
 
     product['categoryId'] = categoryId
-    product['dummy'] = false
+    product['dummy'] = False
 
     query = {'_id': productId}
     update = {'$set': product}
