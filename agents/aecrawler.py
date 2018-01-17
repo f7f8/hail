@@ -218,6 +218,7 @@ def qworker(task):
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
+
 def startWorkers(workers, topic):
     pool = Pool(workers, init_worker)
 
@@ -351,6 +352,9 @@ if __name__ == '__main__':
             'consumer': qc_product_detail
         }
     }
+
+    with open('crawler.pid', 'w') as f:
+        f.write('%d' % os.getpid())
 
     if args.command == 'start':
         startCrawler(args.category)
