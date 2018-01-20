@@ -222,6 +222,16 @@ def init_worker():
 def startWorkers(workers, topic):
     pool = Pool(workers, init_worker)
 
+
+    def term_handler(signal, frame):
+        logging.warn('[aecrawler] 任务中止')
+        pool.terminate()
+        pool.join()
+        sys.exit(0)
+
+
+    signal.signal(signal.SIGTERM, term_handler)
+
     try:
         logging.info('[aecrawler] 启动 %d 个并行爬虫计算...' % workers)
         results = pool.map_async(
