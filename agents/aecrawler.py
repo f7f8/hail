@@ -369,6 +369,9 @@ if __name__ == '__main__':
     if args.command == 'start':
         startCrawler(args.category)
     elif args.command == 'worker':
+        logging.info(
+            '[aecrawler] starting background workers with topic [%s]' % args.topic
+        )
         startWorkers(args.workers, args.topic)
     elif args.command == 'clear':
         clearAll()
