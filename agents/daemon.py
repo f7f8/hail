@@ -3,7 +3,9 @@
 
 import sys
 import os
-import argparse
+import subprocess
+import shlex
+import signal
 import logging
 import json
 import time
@@ -44,8 +46,65 @@ def closeMQ():
     _QCON.close()
 
 
+def stopCrawler():
+    with open('crawler.pid', 'r') as f:
+        pid = int(f.read())
+        logging.info('[aed] kill process %d' % pid)
+
+        try:
+            os.kill(pid, signal.SIGTERM)
+
+        except OSError as e:
+            logging.warn(e)
+
+
+def startCrawler(workers, topic):
+    cmd = 'python aecrawler.py worker -w %d -t %s' % (workers, topic)
+    args = shlex.split(cmd)
+    subprocess.Popen(args)
+
+
+def updateRepository():
+    cmd = 'git pull'
+    args = shlex.split(cmd)
+    subprocess.Popen(args).wait()
+
+
+def updateConfig(config):
+    with open('config.json', 'w') as f:
+        f.write(json.dumps(config, indent=2))
+
+
+def reboot():
+    cmd = 'sudo reboot'
+    args = shlex.split(cmd)
+    subprocess.Popen(args)
+    sys.exit(0)
+
+
 def qc_tasks(ch, method, properties, body):
-    print json.dumps(json.loads(body), indent=2)
+    msg = json.loads(body)
+    command = msg['task']['command']
+
+    if command == 'reboot':
+        reboot()
+
+    if command == 'stop':
+        stopCrawler()
+
+    elif command == 'spawn':
+        logging.info('[aed] updating git repository...')
+        updateRepository()
+        logging.info('[aed] done!') 
+        logging.info('[aed] updating configuration...')
+        updateConfig(msg['config'])
+        logging.info('[aed] done!')
+        logging.info('[aed] starting crawlers ...')
+        startCrawler(
+            int(msg['task']['workers']),
+            msg['task']['topic']
+        )
+
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
