@@ -79,7 +79,6 @@ def reboot():
     cmd = 'sudo reboot'
     args = shlex.split(cmd)
     subprocess.Popen(args)
-    sys.exit(0)
 
 
 def qc_tasks(ch, method, properties, body):
