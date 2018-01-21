@@ -87,6 +87,9 @@ def qc_tasks(ch, method, properties, body):
     command = msg['task']['command']
 
     if command == 'reboot':
+        logging.info('[aed] updating git repository...')
+        updateRepository()
+        logging.info('[aed] done!') 
         reboot()
 
     if command == 'stop':
