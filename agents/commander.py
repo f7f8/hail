@@ -67,6 +67,16 @@ def queueStop():
     _QCH.basic_publish(exchange=_QEXCHANGE, routing_key='', body=json.dumps(msg))
 
 
+def queueReboot():
+    global _QCH
+    msg = {
+        "task": {
+            "command": "reboot",
+        }
+    }
+    _QCH.basic_publish(exchange=_QEXCHANGE, routing_key='', body=json.dumps(msg))
+
+
 def startTasks(nodes, workers, topic):
     openMQChannel()
     queueStop()
@@ -80,12 +90,18 @@ def stopTasks():
     closeMQ()
 
 
+def rebootAll():
+    openMQChannel()
+    queueReboot()
+    closeMQ()
+
+
 if __name__ == '__main__':
     desc = 'aecrawler command console.'
     commands_help = """[start]: starting as a crawler for a category that specified by id number;
  [stop]: stop all workers of nodes."""
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument('command', choices=['start', 'stop'], help=commands_help)
+    parser.add_argument('command', choices=['start', 'stop', 'reboot'], help=commands_help)
     parser.add_argument('-n', '--nodes', type=int, default=20, help='numbers of nodes join in computing, default [20].')
     parser.add_argument('-w', '--workers', type=int, default=5, help='numbers of worker threads when "worker" command taked, default [5].')
     parser.add_argument('-t', '--topic', type=str, default='search.category', help='target topic for worker, "search.category" default.')
@@ -107,3 +123,5 @@ if __name__ == '__main__':
         startTasks(args.nodes, args.workers, args.topic)
     elif args.command == 'stop':
         stopTasks()
+    elif args.command == 'reboot':
+        rebootAll()
