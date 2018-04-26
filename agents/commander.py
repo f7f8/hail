@@ -11,7 +11,7 @@ from datetime import datetime
 import pika
 
 
-_LOG_FILE = 'hail-commander.log'
+_LOG_FILE = 'logs/hail-commander.log'
 _APPCONFIG = None
 _QCON = None
 _QCH = None

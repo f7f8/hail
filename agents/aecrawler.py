@@ -19,7 +19,7 @@ import expressapi as EAPI
 import aemongo as MONGO
 
 
-_LOG_FILE = 'crawler.log'
+_LOG_FILE = 'logs/crawler.log'
 _QTOPICS = None
 _QCON = None
 _QCH = None

@@ -13,7 +13,7 @@ from datetime import datetime
 import pika
 
 
-_LOG_FILE = 'hail-daemon.log'
+_LOG_FILE = 'logs/hail-daemon.log'
 _APPCONFIG = None
 _QCON = None
 _QCH = None
