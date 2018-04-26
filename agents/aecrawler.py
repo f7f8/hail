@@ -249,7 +249,7 @@ def startWorkers(workers, topic):
         pool.join()
 
 
-def startCrawler(categoryId):
+def startCategoryCrawler(categoryId):
     global _HTTPOPENER
     _HTTPOPENER = getHTTPOpener()
     depthFrom = 0
@@ -367,7 +367,7 @@ if __name__ == '__main__':
         f.write('%d' % os.getpid())
 
     if args.command == 'start':
-        startCrawler(args.category)
+        startCategoryCrawler(args.category)
     elif args.command == 'worker':
         logging.info(
             '[aecrawler] starting background workers with topic [%s]' % args.topic
