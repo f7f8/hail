@@ -43,7 +43,7 @@ def browserHeaders():
         "did": "Whv8gyhomxkDALnMb3LoGP7r",
         "dm": "iPhone",
         "model": "iPhone8,1",
-        "vv": "10.1.1|122|WIFI|198.11.136.1|1|2"
+        "vv": "10.1.1|122|WIFI|198.11.132.100|1|2"
     }
 
 
@@ -83,7 +83,7 @@ def getResponse(opener, url, data=None, refer=None):
 
 def loadAEConfig(path):
     global _AECONFIG
-    _AECONFIG = json.load(open(path, 'r'))
+    _AECONFIG = json.load(open(path, 'r'))['api']
 
 
 def setConfig(value):
