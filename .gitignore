@@ -111,3 +111,4 @@ crawler.pid
 .theos/
 obj/
 packages/
+logs/
