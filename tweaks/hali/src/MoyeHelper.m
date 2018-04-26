@@ -2,6 +2,17 @@
 
 @implementation Logger
 
++ (void)create {
+    NSString * aPath = @"/moye/dwarf.log";
+
+    NSFileHandle *fileHandle =
+        [NSFileHandle fileHandleForWritingAtPath:aPath];
+
+    [fileHandle truncateFileAtOffset: 0];
+    [fileHandle closeFile];
+}
+
+
 + (void)write:(NSString *) content {
     NSString * aPath = @"/moye/hali.log";
 

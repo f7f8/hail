@@ -1,6 +1,21 @@
 #import "MoyeHelper.h"
 #import "SecurityGuardParamContext.h"
 
+%hook iAliexpressAppDelegate
+
+- (id)application:(id)application didFinishLaunchingWithOptions:(id)launchOptions {
+    NSMutableString *str = [NSMutableString new];
+    [str appendString: @"\n[dwarf] [MXAppDelegate application:appDelegate:didFinishLaunchingWithOptions:]\n"];
+    [str appendFormat: @"==> (%@): %@\n%@\n\n", [application class], @"application", application];
+    [str appendFormat: @"==> (%@): %@\n%@\n\n", [launchOptions class], @"launchOptions", launchOptions];
+
+    [Logger create];
+    [Logger write:str];
+    return %orig;
+}
+
+%end
+
 %hook AIFAPIRequest
 - (void)startRequestWithMethod:(int)method requestProtocol:(int)protocol isAsyc:(_Bool)async params:(id)params responeseHandler:(id)handler {
     NSMutableString *str = [NSMutableString new];
