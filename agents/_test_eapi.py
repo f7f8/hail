@@ -16,6 +16,7 @@ import unittest
 from multiprocessing import Pool
 import expressapi as EAPI
 
+_LOG_FILE = 'logs/test.log'
 
 def getHTTPOpener():
     urllib2.socket.setdefaulttimeout(15)
@@ -31,7 +32,7 @@ def getHTTPOpener():
 class EAPIBasicTestCase(unittest.TestCase):
     def setUp(self):
         self.opener = getHTTPOpener()
-        EAPI.loadAEConfig(open('config.json', 'r'))
+        EAPI.loadAEConfig('config.json')
 
 
     def tearDown(self):
@@ -53,19 +54,19 @@ class EAPIBasicTestCase(unittest.TestCase):
     def test_getWholeProductDetail_withoutLogin(self):
         productId = 32805300199
         timeZone = 'GMT+08:00'
-        r = EAPI.getWholeProductDetail(None, 0, self.opener, productId, timeZone)
+        r = EAPI.getWholeProductDetail(None, self.opener, productId, timeZone)
         self.assertIsNotNone(r)
 
 
 class EAPIMemberLoginTestCase(unittest.TestCase):
     def setUp(self):
         self.opener = getHTTPOpener()
-        EAPI.loadAEConfig(open('config.json', 'r'))
+        EAPI.loadAEConfig('config.json')
 
 
     def test_memberLogin(self):
         account = 'dashixiong.lee@gmail.com'
-        password = '810603'
+        password = 'rqrLRL@372424'
         needRefreshToken = True
         r = EAPI.memberLogin(
             None, 0, self.opener, account, password, needRefreshToken
@@ -77,9 +78,9 @@ class EAPIMemberLoginTestCase(unittest.TestCase):
 class EAPIMemberTestCase(unittest.TestCase):
     def setUp(self):
         self.opener = getHTTPOpener()
-        EAPI.loadAEConfig(open('config.json', 'r'))
+        EAPI.loadAEConfig('config.json')
         account = 'dashixiong.lee@gmail.com'
-        password = '810603'
+        password = 'rqrLRL@372424'
         needRefreshToken = True
         r = EAPI.memberLogin(
             None, 0, self.opener, account, password, needRefreshToken
@@ -93,9 +94,11 @@ class EAPIMemberTestCase(unittest.TestCase):
     def test_getWholeProductDetail_withLogin(self):
         productId = 32805300199
         timeZone = 'GMT+08:00'
-        r = EAPI.getWholeProductDetail(None, 0, self.opener, productId, timeZone)
+        r = EAPI.getWholeProductDetail(None, self.opener, productId, timeZone)
         self.assertIsNotNone(r)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(filename = _LOG_FILE, level = logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler())
     unittest.main()
