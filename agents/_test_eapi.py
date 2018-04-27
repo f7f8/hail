@@ -65,22 +65,23 @@ class EAPIMemberLoginTestCase(unittest.TestCase):
 
 
     def test_memberLogin(self):
-        account = 'dashixiong.lee@gmail.com'
-        password = 'rqrLRL@372424'
+        accountId = 1756470373
+        account = 'flamingohail2018@gmail.com'
+        password = 'qwe123123'
         needRefreshToken = True
         r = EAPI.memberLogin(
             None, 0, self.opener, account, password, needRefreshToken
         )
         self.assertIsNotNone(r)
-        self.assertEqual(r['accountId'], 1664535863)
+        self.assertEqual(r['accountId'], accountId)
 
 
 class EAPIMemberTestCase(unittest.TestCase):
     def setUp(self):
         self.opener = getHTTPOpener()
         EAPI.loadAEConfig('config.json')
-        account = 'dashixiong.lee@gmail.com'
-        password = 'rqrLRL@372424'
+        account = 'flamingohail2018@gmail.com'
+        password = 'qwe123123'
         needRefreshToken = True
         r = EAPI.memberLogin(
             None, 0, self.opener, account, password, needRefreshToken
@@ -96,6 +97,7 @@ class EAPIMemberTestCase(unittest.TestCase):
         timeZone = 'GMT+08:00'
         r = EAPI.getWholeProductDetail(None, self.opener, productId, timeZone)
         self.assertIsNotNone(r)
+        print json.dumps(r, indent=2)
 
 
 if __name__ == '__main__':
